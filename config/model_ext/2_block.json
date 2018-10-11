@@ -1,0 +1,14 @@
+{
+  "name": "2_block",
+
+  "images_features" : "normalized",
+
+  "model_params":{
+
+    "base_learning_rate" : 1e-3,
+    "optimizer": "adam",
+    "n_modulated_block": 2
+
+
+  }
+}

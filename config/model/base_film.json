@@ -1,0 +1,47 @@
+{
+  "name": "clf_film",
+
+  "images_features" : "normalized",
+
+  "model_params":{
+
+    "film_gen_params":
+    {
+      "film_type" : "simple",
+      "use_feedback" : false,
+      "film_gen_hidden_size" : 512,
+      "vision_reducing_size_mlp" : 40,
+      "vision_reducing_method" : "mlp"
+    },
+
+    "base_learning_rate" : 3e-4,
+    "change_learning_rate" : 0,
+    "batch_size" : 128,
+
+    "optimizer": "rmsprop",
+    "default_w_decay" : 0,
+    "FiLM_decay" : 0,
+
+    "n_modulated_block": 4,
+    "n_regular_block": 0,
+
+    "fc_dropout": 0,
+    "n_hidden" : 400,
+
+    "n_feat_map_max" : 75,
+
+    "head_kernel": 3,
+    "head_pool_kernel": 2,
+    "head_channel": 3,
+
+    "word_emb_size" : 20,
+    "lstm_size" : 200,
+
+    "use_film" : true,
+    "fusing_method" : "no_fuse",
+
+    "hidden_mlp_attention": 0,
+    "embedding_size_before_dot" : 0
+
+  }
+}

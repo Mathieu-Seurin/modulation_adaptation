@@ -1,0 +1,6 @@
+{
+  "name": "decay5e5",
+  "model_params":{
+        "default_w_decay" : 5e-5
+  }
+}
