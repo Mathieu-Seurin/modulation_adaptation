@@ -22,8 +22,9 @@ def full_train_test(config, debug=False):
     n_epoch = config["env_params"]["n_epochs"]
 
     dataset = CleveRDataset(mode="train")
-
+    sampler = torch.utils.data.sampler.RandomSampler(dataset)
     dataloader = DataLoader(dataset,
+                            sampler=sampler,
                             batch_size=batch_size,
                             num_workers=8)
 
@@ -41,7 +42,7 @@ def full_train_test(config, debug=False):
 
     for num_epoch in range(n_epoch):
 
-        model.train()
+        model = model.train()
         logging.info("Epoch #{} begin :".format(num_epoch))
         loss = 0
         count_success = 0
@@ -74,13 +75,14 @@ def full_train_test(config, debug=False):
         train_score_estim = count_success / surrog_len_dataset
         train_score_exact = count_success / len(dataset)
 
-        logger.info("Accuracy train (Estimate) : {:.2}".format(train_score_estim))
-        logger.info("Accuracy train (Exact) : {:.2}".format(train_score_exact))
+        logger.info("Loss train : {:.5}".format(loss[0]))
+        logger.info("Accuracy train (Estimate) : {} / {} = {:.3}".format(count_success, surrog_len_dataset, train_score_estim))
+        logger.info("Accuracy train (Exact) : {} / {} = {:.3}".format(count_success, len(dataset), train_score_exact))
         accuracy_list_train.append(train_score_exact)
 
         # Validation score
         val_score = test_model(model=model, dataset_mode="val", batch_size=batch_size, debug=debug)
-        logger.info("Accuracy val (exact) : {:.2}".format(val_score))
+        logger.info("Accuracy val (exact) : {:.3}".format(val_score))
         accuracy_list_val.append(val_score)
 
     # Test score
@@ -90,13 +92,14 @@ def full_train_test(config, debug=False):
 
 def test_model(model, dataset_mode, batch_size, debug=False):
 
-    model.eval()
+    model = model.eval()
     batch_size = int(batch_size*1.5) #since you don't have to backward, you can have bigger batch
 
     assert dataset_mode in ['test', 'val']
     dataset = CleveRDataset(mode=dataset_mode)
-
+    sampler = torch.utils.data.sampler.SequentialSampler(dataset)
     dataloader = DataLoader(dataset,
+                            sampler=sampler,
                             batch_size=batch_size,
                             num_workers=8)
 
@@ -117,7 +120,7 @@ def test_model(model, dataset_mode, batch_size, debug=False):
         count_success += count_good_prediction(yhat=yhat, y=y)
 
     surrog_len_dataset = (num_batch+1) * batch_size
-    logger.info("Accuracy val (estim) : {:.2}".format(count_success/surrog_len_dataset))
+    logger.info("Accuracy val (estim) : {} / {} = {:.3}".format(count_success, surrog_len_dataset, count_success/surrog_len_dataset))
     return count_success/len(dataset)
 
 

@@ -135,8 +135,8 @@ class CleveRDataset(torch.utils.data.Dataset):
 
         self.img_path = '/media/datas1/dataset/clevr/CLEVR_v1.0/images/{}/'.format(mode)
 
-        self.n_class = 32
-        self.vocab_size = 86
+        self.n_class = 30
+        self.vocab_size = 84
 
         self._len = 0
 
@@ -152,9 +152,10 @@ class CleveRDataset(torch.utils.data.Dataset):
         self.question_shape = self[0]['question'].unsqueeze(0).size()
 
     def __len__(self):
-        return self._len
+        with h5py.File('/media/datas1/dataset/clevr/CLEVR_v1.0/{}_questions.h5'.format(self._mode), 'r') as info_supp:
+            return len(info_supp['answers'])
 
-    def __getitem__(self, item):
+    def __getitem__(self, item, debug=False):
 
         with h5py.File('/media/datas1/dataset/clevr/CLEVR_v1.0/{}_questions.h5'.format(self._mode), 'r') as info_supp:
             img_name = info_supp['image_filenames'][item].decode("UTF-8")
@@ -162,8 +163,9 @@ class CleveRDataset(torch.utils.data.Dataset):
             answer = np.array([info_supp['answers'][item]])
             orig_idx = np.array([info_supp['orig_idxs'][item]])
 
-            question_raw = info_supp['questions_raw'][item]
-            answer_raw = info_supp['answers_raw'][item]
+            if debug:
+                question_raw = info_supp['questions_raw'][item]
+                answer_raw = info_supp['answers_raw'][item]
 
             self._len = len(info_supp['answers'])
 
@@ -181,7 +183,11 @@ class CleveRDataset(torch.utils.data.Dataset):
         question = torch.from_numpy(question)
         answer = torch.from_numpy(answer)
 
-        info = {'img_id': img_path, 'q_id' : orig_idx, 'question_raw': question_raw, 'answer_raw': answer_raw}
-        sample = {'image': img, 'question': question, 'answer': answer, 'info': info}
+        if debug:
+            info = {'img_id': img_path, 'q_id' : orig_idx, 'question_raw': question_raw, 'answer_raw': answer_raw}
+            sample = {'image': img, 'question': question, 'answer': answer, 'info': info}
+        else:
+            sample = {'image': img, 'question': question, 'answer': answer}
 
         return sample
+

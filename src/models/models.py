@@ -5,8 +5,8 @@ import torch.nn.functional as F
 from torch import optim
 from torch.autograd import Variable
 
-from .film_utils import ResidualBlock, FiLMedResBlock, init_modules
-from .gpu_utils import FloatTensor, USE_CUDA
+from models.film_utils import ResidualBlock, FiLMedResBlock, init_modules
+from models.gpu_utils import FloatTensor, USE_CUDA
 from .fusion_utils import choose_fusing, lstm_last_step, lstm_whole_seq, TextAttention,\
     ConvPoolReducingLayer, PoolReducingLayer, LinearReducingLayer
 
@@ -182,14 +182,14 @@ class TextEmbedEncoder(nn.Module):
 
     def forward(self, text):
 
-        text = self.embedding(text)
-        all_ht, ht = self.rnn(text)
+        embedded_q = self.embedding(text)
+        all_ht, ht = self.rnn(embedded_q)
 
         if self.return_all_ht:
             raise NotImplementedError("Need test")
             return all_ht
         else:
-            return all_ht[:, -1]
+            return F.relu(ht[0])
 
 
 
@@ -333,6 +333,7 @@ class FilmedNet(nn.Module):
         self.fc1 = nn.Linear(in_features=fc_input_size, out_features=self.fc_n_hidden)
         self.fc2 = nn.Linear(in_features=self.fc_n_hidden, out_features=self.n_class)
 
+        self.fc_bn = nn.BatchNorm1d(self.fc_n_hidden)
 
         if self.use_film:
 
@@ -386,8 +387,9 @@ class FilmedNet(nn.Module):
         x = self.compute_conv(x, second_mod, still_building_model=False)
 
         x = F.relu(self.fc1(x))
-        x = F.dropout(x, p=self.fc_dropout, training=self.training)
+        x = self.fc_bn(x)
         x = self.fc2(x)
+
         return x
 
     def compute_conv_size(self):
@@ -436,7 +438,7 @@ class FilmedNet(nn.Module):
             self.intermediate_conv_size = x.size()
 
         if not self.use_attention_as_fusing:
-            x = self.head_conv(x)
+            x = F.relu(self.head_conv(x))
             x = F.max_pool2d(x, kernel_size=x.size()[2:])
 
         return x.view(batch_size, -1)
@@ -453,4 +455,13 @@ class FilmedNet(nn.Module):
 
 
 if __name__ == "__main__":
-    pass
+
+    yhat = torch.rand(10,4)
+    yhat[0:7,3] = 1
+
+    y = torch.ones(10)*2
+
+    print(yhat)
+    print(y)
+    print(count_good_prediction(yhat=Variable(yhat), y=Variable(y)))
+
