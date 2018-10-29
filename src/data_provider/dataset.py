@@ -129,14 +129,18 @@ class SequentialTaskDataset(object):
         return len(self.all_shuffler)
 
 class CleveRDataset(torch.utils.data.Dataset):
-    def __init__(self, mode):
+    def __init__(self, mode, images_type="normalized", debug=False):
 
         self._mode = mode
+        self.debug=debug
 
-        self.img_path = '/media/datas1/dataset/clevr/CLEVR_v1.0/images/{}/'.format(mode)
+        self.images_type = images_type
+
+        self.raw_img_path = '/media/datas1/dataset/clevr/CLEVR_v1.0/images/{}/'.format(mode)
+        self.precomp_feat_path = '/media/datas2/precomputed/clevr_res101/{}/'.format(mode)
 
         self.n_class = 30
-        self.vocab_size = 84
+        self.vocab_size = 85
 
         self._len = 0
 
@@ -155,7 +159,7 @@ class CleveRDataset(torch.utils.data.Dataset):
         with h5py.File('/media/datas1/dataset/clevr/CLEVR_v1.0/{}_questions.h5'.format(self._mode), 'r') as info_supp:
             return len(info_supp['answers'])
 
-    def __getitem__(self, item, debug=False):
+    def __getitem__(self, item):
 
         with h5py.File('/media/datas1/dataset/clevr/CLEVR_v1.0/{}_questions.h5'.format(self._mode), 'r') as info_supp:
             img_name = info_supp['image_filenames'][item].decode("UTF-8")
@@ -163,7 +167,7 @@ class CleveRDataset(torch.utils.data.Dataset):
             answer = np.array([info_supp['answers'][item]])
             orig_idx = np.array([info_supp['orig_idxs'][item]])
 
-            if debug:
+            if self.debug:
                 question_raw = info_supp['questions_raw'][item]
                 answer_raw = info_supp['answers_raw'][item]
 
@@ -171,20 +175,32 @@ class CleveRDataset(torch.utils.data.Dataset):
 
         assert answer[0] < 32, "answer is {}".format(answer)
 
-        img_path = os.path.join(self.img_path, img_name)
+        if self.images_type == "pretrained":
 
-        # image and transform
-        img = Image.open(img_path, mode="r")
-        img = img.convert('RGB')
-        img = self.transform(img)
+            with h5py.File("/home/sequel/mseurin/precomputed/clevr_res101/{}_images.h5".format(self._mode),'r') as images:
+                image_name_wo_extension, extension = os.path.splitext(img_name)
+                index = int(image_name_wo_extension.split('_')[2])
+
+                img = torch.from_numpy(images['images'][index])
+
+        elif self.images_type == "normalized":
+
+            img_path = os.path.join(self.raw_img_path, img_name)
+
+            # image and transform
+            img = Image.open(img_path, mode="r")
+            img = img.convert('RGB')
+            img = self.transform(img)
+        else:
+            raise NotImplementedError("images type {} cannot be done.".format(self.images_type))
 
 
         #other additionnal info
         question = torch.from_numpy(question)
         answer = torch.from_numpy(answer)
 
-        if debug:
-            info = {'img_id': img_path, 'q_id' : orig_idx, 'question_raw': question_raw, 'answer_raw': answer_raw}
+        if self.debug:
+            info = {'img_path': img_path, 'q_id' : orig_idx, 'question_raw': question_raw, 'answer_raw': answer_raw}
             sample = {'image': img, 'question': question, 'answer': answer, 'info': info}
         else:
             sample = {'image': img, 'question': question, 'answer': answer}

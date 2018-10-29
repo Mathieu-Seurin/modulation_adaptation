@@ -14,19 +14,24 @@ import numpy as np
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
-def full_train_test(config, debug=False):
+import os
+
+def full_train_test(config, save_path, debug=False):
 
     # Create logger and init params
     logger = logging.getLogger()
+
     batch_size = config["model_params"]["batch_size"]
+    images_type = config["model_params"]["images_features"]
+
     n_epoch = config["env_params"]["n_epochs"]
 
-    dataset = CleveRDataset(mode="train")
+    dataset = CleveRDataset(mode="train", images_type=images_type)
     sampler = torch.utils.data.sampler.RandomSampler(dataset)
     dataloader = DataLoader(dataset,
                             sampler=sampler,
                             batch_size=batch_size,
-                            num_workers=8)
+                            num_workers=6)
 
     input_info = {'vision_shape': dataset.example_shape,
                   'second_modality_shape': dataset.question_shape,
@@ -39,6 +44,8 @@ def full_train_test(config, debug=False):
 
     accuracy_list_train = []
     accuracy_list_val = []
+
+    best_val_score = 0
 
     for num_epoch in range(n_epoch):
 
@@ -81,22 +88,29 @@ def full_train_test(config, debug=False):
         accuracy_list_train.append(train_score_exact)
 
         # Validation score
-        val_score = test_model(model=model, dataset_mode="val", batch_size=batch_size, debug=debug)
+        val_score = test_model(model=model, dataset_mode="val", batch_size=batch_size, images_type=images_type, debug=debug)
         logger.info("Accuracy val (exact) : {:.3}".format(val_score))
         accuracy_list_val.append(val_score)
+
+        if val_score > best_val_score :
+            torch.save(obj=model.state_dict(), f= save_path.format("model_best.pth"))
+
+        torch.save(obj=model.state_dict(),f= save_path.format("model_last.pth"))
+
+
 
     # Test score
     # test_score = test_model(model=model, dataset_mode="test", batch_size=batch_size)
     # logger.info("Accuracy test : {:.2}% accuracy".format(test_score))
 
 
-def test_model(model, dataset_mode, batch_size, debug=False):
+def test_model(model, dataset_mode, batch_size, images_type, debug=False):
 
     model = model.eval()
     batch_size = int(batch_size*1.5) #since you don't have to backward, you can have bigger batch
 
     assert dataset_mode in ['test', 'val']
-    dataset = CleveRDataset(mode=dataset_mode)
+    dataset = CleveRDataset(mode=dataset_mode, images_type=images_type)
     sampler = torch.utils.data.sampler.SequentialSampler(dataset)
     dataloader = DataLoader(dataset,
                             sampler=sampler,
@@ -163,8 +177,36 @@ def test_all_task(model, dataset):
 def prepare_variables(batch, test_time=False):
 
     x = dict()
+    batch_size = batch['question'].size(0)
+    max_length = batch['question'].size(1)
+
     x['vision'] = Variable(batch['image'].type(FloatTensor), volatile=test_time)
-    x['second_modality'] = Variable(batch['question'].type(LongTensor), volatile=test_time)
+
+    # retrieve the biggest question of the batch to accelerate lstm computation (cut all useless padding)
+    # Question index with max number of word : 4556
+    # zero = torch.zeros_like(batch['question']).type(torch.LongTensor)
+    # comparison = batch['question'] == zero
+    #
+    # max_count, last_index = torch.max(torch.sum(comparison, 0),0)
+
+    comparison = batch['question'] == 0
+    colums_with_at_least_one_zero = comparison.nonzero()[:,1]
+
+    last_index = colums_with_at_least_one_zero.max()
+
+    if last_index < batch_size:
+
+        questions_cut = batch['question'][:,:last_index+1] #+1 to take the last into account
+
+        # Check that the +2 is empty
+        if last_index+2 < max_length:
+            assert batch['question'][:,last_index+2].sum() == 0, \
+                "Failed in cutting padded, last_index is {} but found value {} at last_index+1\n{}".format(last_index, batch['question'][:,last_index+2].sum(), batch['question'][:,last_index+2])
+
+    else:
+        questions_cut = batch['question']
+
+    x['second_modality'] = Variable(questions_cut.type(LongTensor), volatile=test_time)
 
     y = Variable(batch['answer'][:,0].type(LongTensor), volatile=test_time)
 
@@ -216,4 +258,4 @@ if __name__ == '__main__':
     else:
         logger.info("Using default device from env")
 
-    full_train_test(config=config, debug=args.debug)
+    full_train_test(config=config, save_path=save_path, debug=args.debug)

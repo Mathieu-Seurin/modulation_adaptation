@@ -1,0 +1,58 @@
+{
+  "name": "film_clevR_multi_hop",
+
+  "model_params":{
+
+    "images_features" : "normalized",
+
+
+    "film_gen_params":
+    {
+      "film_type" : "multi_hop",
+      "use_feedback" : false,
+      "attention_size_hidden" : 200,
+      "vision_reducing_size_mlp" : 40,
+      "vision_reducing_method" : "mlp"
+    },
+
+    "text_encoding":
+      {
+        "n_rnn_layers": 1,
+        "rnn_hidden_size" : 512,
+        "embedding_dim" : 200
+      },
+
+    "features_extractor":
+    {
+      "n_layer":4,
+      "kernel_size":4,
+      "n_channel" : 128,
+      "stride_size": 2
+    },
+
+    "base_learning_rate" : 3e-4,
+    "batch_size" : 64,
+
+    "optimizer": "adam",
+    "default_w_decay" : 1e-5,
+    "FiLM_decay" : 1e-5,
+
+    "n_modulated_block": 4,
+    "n_regular_block": 0,
+
+    "fc_dropout": 0,
+    "fc_n_hidden" : 1024,
+
+    "n_feat_map_max" : 128,
+
+    "head_kernel": 1,
+    "head_channel": 512,
+
+    "use_film" : true,
+    "fusing_method" : "no_fuse",
+
+    "hidden_mlp_attention": 0,
+    "embedding_size_before_dot" : 0
+
+  }
+}

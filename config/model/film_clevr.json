@@ -1,9 +1,10 @@
 {
   "name": "film_clevR",
 
-  "images_features" : "normalized",
-
   "model_params":{
+
+    "images_features" : "normalized",
+
 
     "film_gen_params":
     {
@@ -24,7 +25,8 @@
     {
       "n_layer":4,
       "kernel_size":4,
-      "n_channel" : 128
+      "n_channel" : 128,
+      "stride_size": 2
     },
 
     "base_learning_rate" : 3e-4,

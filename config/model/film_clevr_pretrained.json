@@ -1,0 +1,54 @@
+{
+  "name": "film_clevR_pretrained",
+
+  "model_params":{
+
+    "images_features" : "pretrained",
+
+
+    "film_gen_params":
+    {
+      "film_type" : "simple"
+    },
+
+    "text_encoding":
+      {
+        "n_rnn_layers": 1,
+        "rnn_hidden_size" : 4096,
+        "embedding_dim" : 200
+      },
+
+    "features_extractor":
+    {
+      "n_layer":1,
+      "kernel_size":3,
+      "n_channel" : 128,
+      "stride_size": 1
+    },
+
+    "base_learning_rate" : 3e-4,
+    "batch_size" : 64,
+
+    "optimizer": "adam",
+    "default_w_decay" : 1e-5,
+    "FiLM_decay" : 1e-5,
+
+    "n_modulated_block": 4,
+    "n_regular_block": 0,
+
+    "fc_dropout": 0,
+    "fc_n_hidden" : 1024,
+
+    "n_feat_map_max" : 128,
+
+    "head_kernel": 1,
+    "head_channel": 512,
+
+    "use_film" : true,
+    "fusing_method" : "no_fuse",
+
+    "hidden_mlp_attention": 0,
+    "embedding_size_before_dot" : 0
+
+  }
+}

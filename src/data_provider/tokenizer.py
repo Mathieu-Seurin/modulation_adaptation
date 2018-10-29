@@ -40,7 +40,7 @@ class CLEVRTokenizer:
 
 
     def encode_question(self, question):
-        tokens = []
+        tokens = [self.word2i['<start>']]
         for token in self.tokenizer.tokenize(question):
             if token not in self.word2i:
                 token = '<unk>'

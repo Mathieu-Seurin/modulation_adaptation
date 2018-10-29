@@ -18,7 +18,8 @@ if __name__ == '__main__':
     all_games = json.load(open('/media/datas1/dataset/clevr/CLEVR_v1.0/questions/CLEVR_train_questions.json'))
 
     word2i = {'<padding>': 0,
-              '<unk>': 1
+              '<unk>': 1,
+              '<start>' : 2
               }
 
     answer2i = {'<padding>': 0,

@@ -112,8 +112,7 @@ class TextAttention(nn.Module):
     def __init__(self, text_size, hidden_mlp_size):
         super(TextAttention, self).__init__()
 
-        # mlp
-        attention_input_size = text_size  # ??
+        attention_input_size = text_size
 
         if hidden_mlp_size > 0:
             hidden_layer_att = nn.Linear(attention_input_size, hidden_mlp_size)
@@ -132,18 +131,16 @@ class TextAttention(nn.Module):
         :return: text after text_attention is applied. dim is (batch, size_vec)
         """
 
-        # pytorch lstm give dimension first (not batch which can be counter-intuitive)
-        sequence_length = text_seq.size(0)
-        batch_size = text_seq.size(1)
+        sequence_length = text_seq.size(1)
+        batch_size = text_seq.size(0)
         size_ht = previous_hidden.size(1)
 
         attention_weights_list = []
 
         # compute attention for ht in the sequence
         for ht_num in range(sequence_length):
-            current_ht = text_seq[ht_num]
-            assert current_ht.dim() == 2, "Fail, a single ht should be of dim 2. your dim is {}".format(
-                current_ht.dim())
+            current_ht = text_seq[:, ht_num]
+            assert current_ht.dim() == 2, "Fail, a single ht should be of dim 2. your dim is {}".format(current_ht.dim())
 
             dot_product = previous_hidden * current_ht
             current_weight = self.attention_scoring(self.attention_hidden(dot_product))
@@ -156,7 +153,7 @@ class TextAttention(nn.Module):
         # all_weigths is [batch_size, weigth], need [batch_size, seq_length, weigth]
         all_weigths = F.softmax(all_weigths, dim=1).unsqueeze(2)
 
-        text_seq = text_seq.permute(1, 2, 0)  # text_seq is dim : (seq_length, batch, ht), need (batch, ht, seq_length)
+        text_seq = text_seq.permute(0, 2, 1)  # text_seq is dim : (batch, seq_length, ht), need (batch, ht, seq_length)
 
         text_attentionned = torch.bmm(text_seq, all_weigths)
         text_attentionned = text_attentionned.squeeze(2)
