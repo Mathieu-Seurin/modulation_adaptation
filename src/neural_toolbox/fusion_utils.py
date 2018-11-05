@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-
+from torch.autograd import Variable
+ˇ
 
 # The mlp has to deal with the image features AND text features
 # How do you fuse them ? (concatenation, dot-product, attention)
@@ -207,3 +208,23 @@ class LinearReducingLayer(nn.Module):
         vision = self.linear(vision)
 
         return vision
+
+def choose_reduction_method(vision_reducing_method, vision_size, vision_reducing_size_mlp=None):
+
+    if vision_reducing_method == "mlp":
+        assert vision_reducing_size_mlp != None, "Need to specify the size of the vision reducing part in Multi-hop"
+        vision_size_flatten = vision_size[1] * vision_size[2] * vision_size[3]  # just flatten the input
+        vision_reducer_layer = LinearReducingLayer(vision_size_flatten=vision_size_flatten,
+                                                        output_size=vision_reducing_size_mlp)
+    elif vision_reducing_method == "conv":
+        vision_reducer_layer = ConvPoolReducingLayer(vision_size[1])
+    elif vision_reducing_method == "pool":
+        vision_reducer_layer = PoolReducingLayer()
+    else:
+        raise NotImplementedError("Wrong vision reducing method : {}".format(vision_reducing_method))
+
+    tmp = Variable(torch.ones(vision_size), volatile=True)
+    tmp_out = vision_reducer_layer(tmp)
+    vision_after_reduce_size = tmp_out.size()
+
+    return vision_reducer_layer, vision_after_reduce_size

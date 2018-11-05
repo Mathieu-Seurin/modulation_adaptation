@@ -5,14 +5,13 @@ import torch.nn.functional as F
 from torch import optim
 from torch.autograd import Variable
 
-from models.film_utils import ResidualBlock, FiLMedResBlock, init_modules
-from models.gpu_utils import FloatTensor, USE_CUDA, LongTensor
-from .fusion_utils import choose_fusing, lstm_last_step, lstm_whole_seq, TextAttention,\
-    ConvPoolReducingLayer, PoolReducingLayer, LinearReducingLayer
+from neural_toolbox.film_utils import ResidualBlock, FiLMedResBlock, init_modules, MultiHopFilmGen, SimpleFilmGen
+from neural_toolbox.gpu_utils import FloatTensor, USE_CUDA, LongTensor
 
 from torch.nn import CrossEntropyLoss
 import logging
 import numpy as np
+
 
 def count_good_prediction(yhat,y):
     model_pred = torch.max(yhat, 1)[1].cpu().data.numpy()
@@ -145,121 +144,6 @@ class TextEmbedEncoder(nn.Module):
         return ht
 
 
-class SimpleFilmGen(nn.Module):
-
-    def __init__(self, config, n_block_to_modulate, n_feature_map_per_block, input_size):
-        super(SimpleFilmGen, self).__init__()
-
-        self.n_block_to_modulate = n_block_to_modulate
-
-        self.n_feature_map_per_block = n_feature_map_per_block
-        self.n_features_to_modulate = self.n_block_to_modulate * self.n_feature_map_per_block
-
-        self.output_mlp = self.n_features_to_modulate * 2
-        # for every feature_map, you generate a beta and a gamma, to do : feature_map*gamma + beta
-        # So, for every feature_map, 2 parameters are generated
-
-
-        #self.film_gen_hidden = nn.Linear(input_size, self.film_gen_hidden_size)
-        self.film_gen_last_layer = nn.Linear(input_size, self.output_mlp)
-
-        #self.bn_output = nn.BatchNorm1d(self.output_mlp, affine=False)
-
-    def forward(self, text, first_layer, vision=None):
-        """
-        Common interface for all Film Generator
-        first_layer indicate that you calling film generator for the first time (needed for init etc...)
-        """
-        if first_layer:
-            self.num_layer_count = 0
-            #hidden_film_gen_activ = F.relu(self.film_gen_hidden(text))
-            #self.gammas_betas = self.bn_output(self.film_gen_last_layer(text))
-            self.gammas_betas = self.film_gen_last_layer(text)
-
-        gamma_beta_id = slice(self.n_feature_map_per_block * self.num_layer_count * 2,
-                              self.n_feature_map_per_block * (self.num_layer_count + 1) * 2)
-
-        self.num_layer_count += 1
-
-        return self.gammas_betas[:, gamma_beta_id]
-
-class MultiHopFilmGen(nn.Module):
-
-    def __init__(self, config, n_block_to_modulate, n_feature_map_per_block, text_size, vision_size=None):
-        super(MultiHopFilmGen, self).__init__()
-        assert vision_size is not None, "For FiLM with feedback loop, need size of visual features"
-
-        self.text_size = text_size
-        self.vision_size = vision_size
-        self.use_feedback = config["use_feedback"]
-
-        self.n_feature_map_per_block = n_feature_map_per_block
-
-        self.attention = TextAttention(hidden_mlp_size=config["attention_size_hidden"],
-                                       text_size=text_size)
-
-        if self.use_feedback:
-            if config["vision_reducing_method"] == "mlp" :
-                vision_size_flatten = vision_size[1]*vision_size[2]*vision_size[3] # just flatten the input
-                self.vision_reducer_layer = LinearReducingLayer(vision_size_flatten=vision_size_flatten,
-                                                                output_size=config["vision_reducing_size_mlp"])
-            elif config["vision_reducing_method"] == "conv" :
-                self.vision_reducer_layer = ConvPoolReducingLayer(vision_size[1])
-            elif config["vision_reducing_method"] == "pool" :
-                self.vision_reducer_layer = PoolReducingLayer()
-            else:
-                raise NotImplementedError("Wrong vision reducing method : {}".format(config["vision_reducing_method"]))
-
-            vision_after_reduce_size = self.compute_reduction_size()[1] # batch_size, n_features
-        else:
-            vision_after_reduce_size = 0
-
-        #self.film_gen_hidden = nn.Linear(self.text_size + vision_after_reduce_size, self.film_gen_hidden_size)
-
-        self.film_gen_last_layer = nn.Linear(self.text_size + vision_after_reduce_size, n_feature_map_per_block * 2)
-        # for every feature_map, you generate a beta and a gamma, to do : feature_map*gamma + beta
-        # So, for every feature_map, 2 parameters are generated
-
-
-    def forward(self, text, first_layer, vision=None):
-        """
-        Common interface for all Film Generator
-        first_layer indicate that you calling film generator for the first time (needed for init etc...)
-        """
-        batch_size = text.size(0)
-
-        # todo : learn init from vision ??
-        # if first layer, reset ht to ones only
-        if first_layer:
-            self.ht = Variable(torch.ones(batch_size, self.text_size).type(FloatTensor))
-
-        # Compute text features
-        text_vec = self.attention(text_seq=text, previous_hidden=self.ht)
-        # todo layer norm ? not available on 0.3.0
-        self.ht = text_vec
-
-
-        # Compute feedback loop and fuse
-        if self.use_feedback:
-            vision_feat_reduced = self.vision_reducer_layer(vision)
-            film_gen_input = torch.cat((vision_feat_reduced, text_vec), dim=1)
-        else:
-            film_gen_input = text_vec
-
-        # Generate film parameters
-        gammas_betas = self.film_gen_last_layer(film_gen_input)
-
-        return gammas_betas
-
-    def compute_reduction_size(self):
-
-        tmp = Variable(torch.ones(self.vision_size))
-        tmp_out = self.vision_reducer_layer(tmp)
-        return tmp_out.size()
-
-
-
-
 class FilmedNet(nn.Module):
     def __init__(self, config, n_class, input_info):
         super(FilmedNet, self).__init__()
@@ -370,7 +254,7 @@ class FilmedNet(nn.Module):
         else:
             self.head_conv = lambda x:x
 
-        fc_input_size, intermediate_conv_size = self.compute_conv_size()
+        fc_input_size, intermediate_conv_size, extractor_conv_size = self.compute_conv_size()
         self.fc1 = nn.Linear(in_features=fc_input_size, out_features=self.fc_n_hidden)
         self.fc2 = nn.Linear(in_features=self.fc_n_hidden, out_features=self.n_class)
 
@@ -390,7 +274,9 @@ class FilmedNet(nn.Module):
                                                 n_block_to_modulate=self.n_modulated_block,
                                                 n_feature_map_per_block=self.n_feature_map_per_block,
                                                 text_size=self.text_embed_encode.rnn_hidden_size,
-                                                vision_size=intermediate_conv_size)
+                                                vision_size=intermediate_conv_size,
+                                                vision_extractor_size_output=extractor_conv_size)
+
             else:
                 raise NotImplementedError("Wrong Film generator type : given '{}'".format(self.film_gen_type))
 
@@ -437,7 +323,7 @@ class FilmedNet(nn.Module):
 
         # Don't convert it to cuda because the model is not yet on GPU (because you're still defining the model here ;)
         tmp = Variable(torch.zeros(*self.input_shape))
-        return self.compute_conv(tmp, still_building_model=True).size(1), self.intermediate_conv_size
+        return self.compute_conv(tmp, still_building_model=True).size(1), self.intermediate_conv_size, self.extactor_size
 
     def compute_conv(self, x, text_state=None, still_building_model=False):
         """
@@ -454,6 +340,9 @@ class FilmedNet(nn.Module):
         batch_size = x.size(0)
 
         x = self.feature_extactor(x)
+
+        self.extactor_size = x.size()
+
 
         # Regular resblock, easy
         for i,regular_resblock in enumerate(self.regular_blocks):

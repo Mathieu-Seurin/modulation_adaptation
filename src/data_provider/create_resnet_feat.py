@@ -1,4 +1,4 @@
-from src.models.gpu_utils import FloatTensor, USE_CUDA
+from src.neural_toolbox.gpu_utils import FloatTensor, USE_CUDA
 import torch
 from torch.autograd import Variable
 

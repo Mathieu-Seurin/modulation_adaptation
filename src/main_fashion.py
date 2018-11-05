@@ -2,9 +2,9 @@ import argparse
 import logging
 import tqdm
 
-from models.models import ClfModel, count_good_prediction
+from neural_toolbox.models import ClfModel, count_good_prediction
 from data_provider.dataset import SequentialTaskDataset
-from models.gpu_utils import FloatTensor, LongTensor
+from neural_toolbox.gpu_utils import FloatTensor, LongTensor
 from config import load_config_and_logger
 
 import numpy as np
