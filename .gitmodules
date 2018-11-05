@@ -1,0 +1,3 @@
+[submodule "src/neural_toolbox"]
+	path = src/neural_toolbox
+	url = https://github.com/Mathieu-Seurin/neural_toolbox.git
