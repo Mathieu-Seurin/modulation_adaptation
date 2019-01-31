@@ -1,5 +1,7 @@
 import numpy as np
-#from keras.datasets import fashion_mnist, cifar10
+
+import tensorflow as tf
+from tensorflow.keras.datasets import fashion_mnist, cifar10
 import torch
 import h5py
 
@@ -11,7 +13,6 @@ from PIL import Image
 class ImageLoader(object):
     def __init__(self):
         raise NotImplementedError("Later")
-
 
 class Shuffler(object):
     def __init__(self, n_shuffle, in_size):
@@ -39,7 +40,6 @@ class Shuffler(object):
 
     def __call__(self, x):
         return self.shuffle(x)
-
 
 class SequentialTaskDataset(object):
     def __init__(self, config, batch_size):
@@ -128,6 +128,66 @@ class SequentialTaskDataset(object):
     def n_task_done(self):
         return len(self.all_shuffler)
 
+class ImageClassifDataset(torch.utils.data.Dataset):
+    def __init__(self, dataset='fashion-mnist', mode="train", shuffle_label=False):
+
+        self.train_val_ratio = 0.8
+
+        if dataset== 'fashion-mnist':
+            (x_train, y_train), (x_test, y_test) = fashion_mnist.load_data()
+            self.transform = Compose([
+                ToTensor(),
+                Normalize(mean=(0.1307,),
+                          std=(0.3081,))
+            ])
+
+            self.example_shape = (1,1,28,28)
+            self.n_class = 10
+
+            x_train = np.expand_dims(x_train, axis=1)
+            x_test = np.expand_dims(x_test, axis=1)
+
+        elif dataset== 'cifar10':
+            (x_train, y_train), (x_test, y_test) = cifar10.load_data()
+            self.transform = Compose([
+                ToTensor(),
+                Normalize(mean=(0.4914, 0.4822, 0.4465),
+                          std=(0.247, 0.243, 0.261))
+            ])
+
+            self.example_shape = (1,3,32,32)
+            self.n_class = 10
+
+        else:
+            NotImplementedError("No other dataset supported, you asked for : {}".format(dataset))
+
+        self.dataset = {}
+        if mode == "train":
+            self.dataset['x'] = x_train[:int(self.train_val_ratio*len(x_train))]
+            self.dataset['y'] = y_train[:int(self.train_val_ratio*len(x_train))]
+        elif mode=="val":
+            self.dataset['x'] = x_train[int(self.train_val_ratio*len(x_train)):]
+            self.dataset['y'] = y_train[int(self.train_val_ratio*len(x_train)):] # check shuffled dataset
+        else:
+            self.dataset['x'] = x_test
+            self.dataset['y'] = y_test
+
+        self.question_shape = [1]
+        if shuffle_label :
+            self.task = np.array([1])
+            pass
+        else:
+            self.task = np.array([0])
+
+        #self.dataset['y'] = tf.keras.utils.to_categorical(self.dataset['y'])
+
+    def __getitem__(self, item):
+        return {'image' : self.dataset['x'][item], 'y' : self.dataset['y'][item], 'task': self.task}
+
+    def __len__(self):
+        return len(self.dataset['x'])
+
+
 class CleveRDataset(torch.utils.data.Dataset):
     def __init__(self, mode, images_type="normalized", debug=False):
 
@@ -193,7 +253,6 @@ class CleveRDataset(torch.utils.data.Dataset):
             img = self.transform(img)
         else:
             raise NotImplementedError("images type {} cannot be done.".format(self.images_type))
-
 
         #other additionnal info
         question = torch.from_numpy(question)
