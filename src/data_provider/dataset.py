@@ -144,8 +144,8 @@ class ImageClassifDataset(torch.utils.data.Dataset):
             self.example_shape = (1,1,28,28)
             self.n_class = 10
 
-            x_train = np.expand_dims(x_train, axis=1)
-            x_test = np.expand_dims(x_test, axis=1)
+            x_train = np.expand_dims(x_train, axis=3)
+            x_test = np.expand_dims(x_test, axis=3)
 
         elif dataset== 'cifar10':
             (x_train, y_train), (x_test, y_test) = cifar10.load_data()
@@ -157,6 +157,9 @@ class ImageClassifDataset(torch.utils.data.Dataset):
 
             self.example_shape = (1,3,32,32)
             self.n_class = 10
+
+            y_train = np.squeeze(y_train, axis=1)
+            y_test = np.squeeze(y_test, axis=1)
 
         else:
             NotImplementedError("No other dataset supported, you asked for : {}".format(dataset))
@@ -174,6 +177,17 @@ class ImageClassifDataset(torch.utils.data.Dataset):
 
         self.question_shape = [1]
         if shuffle_label :
+
+            label_switch = [6, 3, 4, 5, 9, 8, 0, 1, 7, 2] # Arbitrary shuffle, osef
+
+            new_labels = self.dataset['y'].copy()
+
+            for i in range(self.n_class):
+                new_labels[np.where(self.dataset['y']==i)] = label_switch[i]
+
+            self.dataset['y'] = new_labels
+
+
             self.task = np.array([1])
             pass
         else:
@@ -182,7 +196,7 @@ class ImageClassifDataset(torch.utils.data.Dataset):
         #self.dataset['y'] = tf.keras.utils.to_categorical(self.dataset['y'])
 
     def __getitem__(self, item):
-        return {'image' : self.dataset['x'][item], 'y' : self.dataset['y'][item], 'task': self.task}
+        return {'image' : self.transform(self.dataset['x'][item]), 'y' : self.dataset['y'][item], 'task': self.task}
 
     def __len__(self):
         return len(self.dataset['x'])
